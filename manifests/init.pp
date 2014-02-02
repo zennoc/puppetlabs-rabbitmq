@@ -15,7 +15,6 @@ class rabbitmq(
   $env_config                 = $rabbitmq::params::env_config,
   $env_config_path            = $rabbitmq::params::env_config_path,
   $erlang_cookie              = $rabbitmq::params::erlang_cookie,
-  $erlang_manage              = $rabbitmq::params::erlang_manage,
   $manage_service             = $rabbitmq::params::manage_service,
   $management_port            = $rabbitmq::params::management_port,
   $node_ip_address            = $rabbitmq::params::node_ip_address,
@@ -25,6 +24,7 @@ class rabbitmq(
   $package_name               = $rabbitmq::params::package_name,
   $package_provider           = $rabbitmq::params::package_provider,
   $package_source             = $rabbitmq::params::package_source,
+  $manage_repos               = $rabbitmq::params::manage_repos,
   $plugin_dir                 = $rabbitmq::params::plugin_dir,
   $port                       = $rabbitmq::params::port,
   $service_ensure             = $rabbitmq::params::service_ensure,
@@ -50,10 +50,10 @@ class rabbitmq(
   $cluster_partition_handling = $rabbitmq::params::cluster_partition_handling,
   $environment_variables      = $rabbitmq::params::environment_variables,
   $config_variables           = $rabbitmq::params::config_variables,
+  $config_kernel_variables    = $rabbitmq::params::config_kernel_variables,
 ) inherits rabbitmq::params {
 
   validate_bool($admin_enable)
-  validate_bool($erlang_manage)
   # Validate install parameters.
   validate_re($package_apt_pin, '^(|\d+)$')
   validate_string($package_ensure)
@@ -61,6 +61,7 @@ class rabbitmq(
   validate_string($package_name)
   validate_string($package_provider)
   validate_string($package_source)
+  validate_bool($manage_repos)
   validate_re($version, '^\d+\.\d+\.\d+(-\d+)*$') # Allow 3 digits and optional -n postfix.
   # Validate config parameters.
   validate_array($cluster_disk_nodes)
@@ -104,24 +105,22 @@ class rabbitmq(
   validate_bool($ldap_log)
   validate_hash($environment_variables)
   validate_hash($config_variables)
-
-  if $erlang_manage {
-    include '::erlang'
-    Class['::erlang'] -> Class['::rabbitmq::install']
-  }
+  validate_hash($config_kernel_variables)
 
   include '::rabbitmq::install'
   include '::rabbitmq::config'
   include '::rabbitmq::service'
   include '::rabbitmq::management'
 
-  case $::osfamily {
-    'RedHat', 'SUSE':
-      { include '::rabbitmq::repo::rhel' }
-    'Debian':
-      { include '::rabbitmq::repo::apt' }
-    default:
-      { }
+  if $rabbitmq::manage_repos == true {
+    case $::osfamily {
+      'RedHat', 'SUSE':
+        { include '::rabbitmq::repo::rhel' }
+      'Debian':
+        { include '::rabbitmq::repo::apt' }
+      default:
+        { }
+    }
   }
 
   if $admin_enable and $service_manage {

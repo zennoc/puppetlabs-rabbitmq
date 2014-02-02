@@ -15,12 +15,48 @@ describe 'rabbitmq' do
     it 'includes rabbitmq::repo::apt' do
       should contain_class('rabbitmq::repo::apt')
     end
+
+    describe 'apt::source default values' do
+      let(:facts) {{ :osfamily => 'Debian' }}
+      it 'should add a repo with defaults values' do
+        contain_file('/etc/apt/sources.list.d/rabbitmq.list')\
+          .with_content(/deb http\:\/\/www\.rabbitmq.com\/debian\/ testing main/)
+      end
+    end
+
+    describe 'apt::source custom values' do
+      let(:params) {
+        { :location => 'http://www.foorepo.com/debian',
+          :release => 'unstable',
+          :repos => 'main'
+        }}
+      it 'should add a repo with custom new values' do
+        contain_file('/etc/apt/sources.list.d/rabbitmq.list')\
+          .with_content(/deb http\:\/\/www\.foorepo.com\/debian\/ unstable main/)
+      end
+    end
+  end
+
+  context 'on Debian' do
+    let(:params) {{ :manage_repos => false }}
+    let(:facts) {{ :osfamily => 'Debian', :lsbdistcodename => 'squeeze' }}
+    it 'does not include rabbitmq::repo::apt when manage_repos is false' do
+      should_not contain_class('rabbitmq::repo::apt')
+    end
   end
 
   context 'on Redhat' do
     let(:facts) {{ :osfamily => 'RedHat' }}
     it 'includes rabbitmq::repo::rhel' do
       should contain_class('rabbitmq::repo::rhel')
+    end
+  end
+  
+  context 'on Redhat' do
+    let(:params) {{ :manage_repos => false }}
+    let(:facts) {{ :osfamily => 'RedHat' }}
+    it 'does not include rabbitmq::repo::rhel when manage_repos is false' do
+      should_not contain_class('rabbitmq::repo::rhel')
     end
   end
   
@@ -56,21 +92,6 @@ describe 'rabbitmq' do
           end
         end
       end
-
-      context 'with erlang_manage set to true' do
-        let(:params) {{ :erlang_manage => true }}
-        it 'includes erlang' do
-          should contain_class('erlang')
-        end
-      end
-
-      context 'with erlang_manage set to false' do
-        let(:params) {{ :erlang_manage => false }}
-        it 'doesnt include erlang' do
-          should_not contain_class('erlang')
-        end
-      end
-
 
       context 'deprecated parameters' do
         describe 'cluster_disk_nodes' do
@@ -299,6 +320,18 @@ describe 'rabbitmq' do
         end
       end
 
+      describe 'config_kernel_variables options' do
+        let(:params) {{ :config_kernel_variables => {
+            'inet_dist_listen_min'      => 9100,
+            'inet_dist_listen_max'      => 9105,
+        }}}
+        it 'should set config variables' do
+          should contain_file('rabbitmq.config') \
+            .with_content(/\{inet_dist_listen_min, 9100\}/) \
+            .with_content(/\{inet_dist_listen_max, 9105\}/) 
+        end
+      end
+
       context 'delete_guest_user' do
         describe 'should do nothing by default' do
           it { should_not contain_rabbitmq_user('guest') }
@@ -388,7 +421,7 @@ describe 'rabbitmq' do
       )
     end
   end
-  
+
   context "on Archlinux" do
     let(:facts) {{ :osfamily => 'Archlinux' }}
     it 'installs the rabbitmq package' do

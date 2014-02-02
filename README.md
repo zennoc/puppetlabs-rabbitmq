@@ -11,6 +11,7 @@
 4. [Usage - Configuration options and additional functionality](#usage)
 5. [Reference - An under-the-hood peek at what the module is doing and how](#reference)
 5. [Limitations - OS compatibility, etc.](#limitations)
+   * [RedHat module dependencies](#redhat-module-dependecies)
 6. [Development - Guide for contributing to the module](#development)
 
 ##Overview
@@ -52,7 +53,7 @@ disabling puppet support of the service:
 
 ```puppet
 class { '::rabbitmq':
-  service_manage    => false
+  service_manage    => false,
   port              => '5672',
   delete_guest_user => true,
 }
@@ -81,6 +82,19 @@ class { 'rabbitmq':
     'hipe_compile'  => true,
     'frame_max'     => 131072,
     'log_levels'    => "[{connection, info}]"
+  }
+}
+```
+
+To change Erlang Kernel Config Variables in rabbitmq.config, use the parameters 
+`config_kernel_variables` e.g.:
+
+```puppet
+class { 'rabbitmq':
+  port              => '5672',
+  kernel_config_options => {
+    'inet_dist_listen_min' => 9100,
+    'inet_dist_listen_max' => 9105,
   }
 }
 ```
@@ -301,6 +315,19 @@ The module has been tested on:
 * Ubuntu 12.04
 
 Testing on other platforms has been light and cannot be guaranteed.
+
+### RedHat module dependencies
+To have a suitable erlang version installed on RedHat systems,
+you have to install another puppet module from http://forge.puppetlabs.com/garethr/erlang with:
+
+	puppet module install garethr-erlang
+
+This module handles the packages for erlang.
+To use the module, add the following snippet to your site.pp or an appropriate profile class:
+
+	include 'erlang'
+	class { 'erlang': epel_enable => true}
+	Class['erlang'] -> Class['rabbitmq']
 
 ##Development
 

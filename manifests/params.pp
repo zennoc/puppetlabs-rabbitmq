@@ -39,13 +39,13 @@ class rabbitmq::params {
 
   #install
   $admin_enable               = true
-  $erlang_manage              = false
   $management_port            = '15672'
   $package_apt_pin            = ''
   $package_gpg_key            = 'http://www.rabbitmq.com/rabbitmq-signing-key-public.asc'
+  $manage_repos               = true
   $service_ensure             = 'running'
   $service_manage             = true
-  #config 
+  #config
   $cluster_disk_nodes         = []
   $cluster_node_type          = 'disc'
   $cluster_nodes              = []
@@ -83,4 +83,5 @@ class rabbitmq::params {
   $cluster_partition_handling = 'ignore'
   $environment_variables      = {}
   $config_variables           = {}
+  $config_kernel_variables    = {}
 }
