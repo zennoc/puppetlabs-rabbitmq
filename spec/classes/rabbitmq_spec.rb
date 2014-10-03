@@ -20,7 +20,7 @@ describe 'rabbitmq' do
       let(:facts) {{ :osfamily => 'Debian' }}
       it 'should add a repo with defaults values' do
         contain_file('/etc/apt/sources.list.d/rabbitmq.list')\
-          .with_content(/deb http\:\/\/www\.rabbitmq.com\/debian\/ testing main/)
+          .with_content(%r|deb http\://www\.rabbitmq.com/debian/ testing main|)
       end
     end
 
@@ -32,7 +32,7 @@ describe 'rabbitmq' do
         }}
       it 'should add a repo with custom new values' do
         contain_file('/etc/apt/sources.list.d/rabbitmq.list')\
-          .with_content(/deb http\:\/\/www\.foorepo.com\/debian\/ unstable main/)
+          .with_content(%r|deb http\://www\.foorepo.com/debian/ unstable main|)
       end
     end
   end
@@ -83,6 +83,20 @@ describe 'rabbitmq' do
               'require' => 'Class[Rabbitmq::Install]',
               'notify'  => 'Class[Rabbitmq::Service]'
             )
+            should contain_staging__file('rabbitmqadmin').with_source("http://guest:guest@localhost:15672/cli/rabbitmqadmin")
+          end
+        end
+        context 'with service_manage set to true and default user/pass specified' do
+          let(:params) {{ :admin_enable => true, :default_user => 'foobar', :default_pass => 'hunter2' }}
+          it 'we use the correct URL to rabbitmqadmin' do
+            should contain_staging__file('rabbitmqadmin').with_source("http://foobar:hunter2@localhost:15672/cli/rabbitmqadmin")
+          end
+        end
+        context 'with service_manage set to true and management port specified' do
+          # note that the 2.x management port is 55672 not 15672
+          let(:params) {{ :admin_enable => true, :management_port => '55672' }}
+          it 'we use the correct URL to rabbitmqadmin' do
+            should contain_staging__file('rabbitmqadmin').with_source("http://guest:guest@localhost:55672/cli/rabbitmqadmin")
           end
         end
         context 'with service_manage set to false' do
@@ -275,6 +289,30 @@ describe 'rabbitmq' do
         end
       end
 
+      describe 'configuring ldap authentication' do
+        let :params do
+          { :config_stomp         => false,
+            :ldap_auth            => true,
+            :ldap_server          => 'ldap.example.com',
+            :ldap_user_dn_pattern => 'ou=users,dc=example,dc=com',
+            :ldap_use_ssl         => false,
+            :ldap_port            => '389',
+            :ldap_log             => true
+          }
+        end
+
+        it { should contain_rabbitmq_plugin('rabbitmq_auth_backend_ldap') }
+
+        it 'should contain ldap parameters' do
+          verify_contents(subject, 'rabbitmq.config', 
+                          ['[', '  {rabbit, [', '    {auth_backends, [rabbit_auth_backend_internal, rabbit_auth_backend_ldap]},', '  ]}',
+                            '  {rabbitmq_auth_backend_ldap, [', '    {other_bind, anon},',
+                            '    {servers, ["ldap.example.com"]},',
+                            '    {user_dn_pattern, "ou=users,dc=example,dc=com"},', '    {use_ssl, false},',
+                            '    {port, 389},', '    {log, true}'])
+        end
+      end
+
       describe 'default_user and default_pass set' do
         let(:params) {{ :default_user => 'foo', :default_pass => 'bar' }}
         it 'should set default_user and default_pass to specified values' do
@@ -287,6 +325,26 @@ describe 'rabbitmq' do
       describe 'ssl options' do
         let(:params) {
           { :ssl => true,
+            :ssl_port => 3141,
+            :ssl_cacert => '/path/to/cacert',
+            :ssl_cert => '/path/to/cert',
+            :ssl_key => '/path/to/key'
+        } }
+
+        it 'should set ssl options to specified values' do
+          contain_file('rabbitmq.config').with({
+            'content' => %r|ssl_listeners, \[3141\].*
+            ssl_options, \[\{cacertfile,"/path/to/cacert".*
+            certfile="/path/to/cert".*
+            keyfile,"/path/to/key|,
+          })
+        end
+      end
+
+      describe 'ssl options with ssl_only' do
+        let(:params) {
+          { :ssl => true,
+            :ssl_only => true,
             :ssl_management_port => 3141,
             :ssl_cacert => '/path/to/cacert',
             :ssl_cert => '/path/to/cert',
@@ -295,10 +353,93 @@ describe 'rabbitmq' do
 
         it 'should set ssl options to specified values' do
           contain_file('rabbitmq.config').with({
-            'content' => /ssl_listeners, \[3141\].*
-            ssl_options, \[{cacertfile,"\/path\/to\/cacert".*
-            certfile="\/path\/to\/cert".*
-            keyfile,"\/path\/to\/key/,
+            'content' => %r|tcp_listeners, \[\].*
+            ssl_listeners, \[3141\].*
+            ssl_options, \[\{cacertfile,"/path/to/cacert".*
+            certfile="/path/to/cert".*
+            keyfile,"/path/to/key|,
+          })
+        end
+      end
+
+      describe 'ssl admin options' do
+        let(:params) {
+          { :ssl => true,
+            :ssl_management_port => 3141,
+            :ssl_cacert => '/path/to/cacert',
+            :ssl_cert => '/path/to/cert',
+            :ssl_key => '/path/to/key',
+            :admin_enable => true
+        } }
+
+        it 'should set rabbitmq_management ssl options to specified values' do
+          contain_file('rabbitmq.config').with({
+            'content' => %r|\{rabbitmq_management, \[.*
+                          \{listener, \[.*
+                          \{port, 3141\},.*
+                          \{ssl, true\},.*
+                          \{ssl_opts, \[\{cacertfile, "/path/to/cacert"\},.*
+                          \{certfile, "/path/to/cert"\},.*
+                          \{keyfile, "/path/to/key"\}\]\}.*
+                          \]\}|,
+          })
+        end
+      end
+
+      describe 'admin without ssl' do
+        let(:params) {
+          { :ssl => false,
+            :management_port => 3141,
+            :admin_enable => true
+        } }
+
+        it 'should set rabbitmq_management  options to specified values' do
+          contain_file('rabbitmq.config').with({
+            'content' => /\{rabbitmq_management, \[.*
+                          \{listener, \[.*
+                          \{port, 3141\},.*
+                          \]\}/,
+          })
+        end
+      end
+
+      describe 'ssl admin options' do
+        let(:params) {
+          { :ssl => true,
+            :ssl_management_port => 3141,
+            :ssl_cacert => '/path/to/cacert',
+            :ssl_cert => '/path/to/cert',
+            :ssl_key => '/path/to/key',
+            :admin_enable => true
+        } }
+
+        it 'should set rabbitmq_management ssl options to specified values' do
+          contain_file('rabbitmq.config').with({
+            'content' => %r|\{rabbitmq_management, \[.*
+                          \{listener, \[.*
+                          \{port, 3141\},.*
+                          \{ssl, true\},.*
+                          \{ssl_opts, \[\{cacertfile, "/path/to/cacert"\},.*
+                          \{certfile, "/path/to/cert"\},.*
+                          \{keyfile, "/path/to/key"\}\]\}.*
+                          \]\}|,
+          })
+        end
+      end
+
+      describe 'admin without ssl' do
+        let(:params) {
+          { :ssl => false,
+            :management_port => 3141,
+            :admin_enable => true
+        } }
+
+        it 'should set rabbitmq_management  options to specified values' do
+          contain_file('rabbitmq.config').with({
+            'content' => /\{rabbitmq_management, \[.*
+                          \{listener, \[.*
+                          \{port, 3141\},.*
+                          \]\}/,
           })
         end
       end
@@ -330,6 +471,33 @@ describe 'rabbitmq' do
           should contain_file('rabbitmq.config') \
             .with_content(/\{inet_dist_listen_min, 9100\}/) \
             .with_content(/\{inet_dist_listen_max, 9105\}/) 
+        end
+      end
+
+      describe 'tcp_keepalive enabled' do
+        let(:params) {{ :tcp_keepalive => true }}
+        it 'should set tcp_listen_options keepalive true' do
+          should contain_file('rabbitmq.config') \
+            .with_content(/\{tcp_listen_options, \[\{keepalive, true\}\]\},/)
+        end
+      end
+
+      describe 'tcp_keepalive disabled (default)' do
+        it 'should not set tcp_listen_options' do
+          should contain_file('rabbitmq.config') \
+            .without_content(/\{tcp_listen_options, \[\{keepalive, true\}\]\},/)
+        end
+      end
+
+      describe 'non-bool tcp_keepalive parameter' do
+        let :params do
+          { :tcp_keepalive => 'string' }
+        end
+
+        it 'should raise an error' do
+          expect {
+            should contain_file('rabbitmq.config')
+          }.to raise_error(Puppet::Error, /is not a boolean/)
         end
       end
 
@@ -406,7 +574,7 @@ describe 'rabbitmq' do
       should contain_package('rabbitmq-server').with(
         'ensure'   => 'installed',
         'name'     => 'rabbitmq-server',
-        'provider' => 'rpm',
+        'provider' => 'yum',
         'source'   => 'http://www.rabbitmq.com/releases/rabbitmq-server/v3.2.3/rabbitmq-server-3.2.3-1.noarch.rpm'
       )
     end
