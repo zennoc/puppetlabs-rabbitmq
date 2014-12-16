@@ -1,4 +1,4 @@
-  #
+# Main rabbitmq class
 class rabbitmq(
   $admin_enable               = $rabbitmq::params::admin_enable,
   $cluster_disk_nodes         = $rabbitmq::params::cluster_disk_nodes,
@@ -21,7 +21,8 @@ class rabbitmq(
   $package_gpg_key            = $rabbitmq::params::package_gpg_key,
   $package_name               = $rabbitmq::params::package_name,
   $package_provider           = $rabbitmq::params::package_provider,
-  $package_source             = $rabbitmq::params::package_source,
+  $package_source             = undef,
+  $repos_ensure               = $rabbitmq::params::repos_ensure,
   $manage_repos               = $rabbitmq::params::manage_repos,
   $plugin_dir                 = $rabbitmq::params::plugin_dir,
   $port                       = $rabbitmq::params::port,
@@ -53,6 +54,7 @@ class rabbitmq(
   $environment_variables      = $rabbitmq::params::environment_variables,
   $config_variables           = $rabbitmq::params::config_variables,
   $config_kernel_variables    = $rabbitmq::params::config_kernel_variables,
+  $key_content                = undef,
 ) inherits rabbitmq::params {
 
   validate_bool($admin_enable)
@@ -62,11 +64,11 @@ class rabbitmq(
   validate_string($package_gpg_key)
   validate_string($package_name)
   validate_string($package_provider)
-  validate_bool($manage_repos)
+  validate_bool($repos_ensure)
   validate_re($version, '^\d+\.\d+\.\d+(-\d+)*$') # Allow 3 digits and optional -n postfix.
   # Validate config parameters.
   validate_array($cluster_disk_nodes)
-  validate_re($cluster_node_type, '^(ram|disc)$')
+  validate_re($cluster_node_type, '^(ram|disc|disk)$') # Both disc and disk are valid http://www.rabbitmq.com/clustering.html
   validate_array($cluster_nodes)
   validate_string($config)
   validate_absolute_path($config_path)
@@ -113,17 +115,45 @@ class rabbitmq(
     fail('$ssl_only => true requires that $ssl => true')
   }
 
+  if $config_stomp and $ssl_stomp_port and ! $ssl {
+    warning('$ssl_stomp_port requires that $ssl => true and will be ignored')
+  }
+
+  # This needs to happen here instead of params.pp because
+  # $package_source needs to override the constructed value in params.pp
+  if $package_source { # $package_source was specified by user so use that one
+    $real_package_source = $package_source
+  } else { #  package_source was not specified, so construct it
+    case $::osfamily {
+      'RedHat', 'SUSE': {
+        $base_version   = regsubst($version,'^(.*)-\d$','\1')
+        $real_package_source = "http://www.rabbitmq.com/releases/rabbitmq-server/v${base_version}/rabbitmq-server-${version}.noarch.rpm"
+      }
+      default: { # Archlinux and Debian
+        $real_package_source = ''
+      }
+    }
+  }
+
   include '::rabbitmq::install'
   include '::rabbitmq::config'
   include '::rabbitmq::service'
   include '::rabbitmq::management'
 
-  if $rabbitmq::manage_repos == true {
+  if $manage_repos != undef {
+    warning('$manage_repos is now deprecated. Please use $repos_ensure instead')
+  }
+
+  if $manage_repos != false {
     case $::osfamily {
       'RedHat', 'SUSE':
         { include '::rabbitmq::repo::rhel' }
-      'Debian':
-        { include '::rabbitmq::repo::apt' }
+      'Debian': {
+        class { '::rabbitmq::repo::apt' :
+          key_source  => $package_gpg_key,
+          key_content => $key_content,
+        }
+      }
       default:
         { }
     }
@@ -133,9 +163,9 @@ class rabbitmq(
     include '::rabbitmq::install::rabbitmqadmin'
 
     rabbitmq_plugin { 'rabbitmq_management':
-      ensure  => present,
-      require => Class['rabbitmq::install'],
-      notify  => Class['rabbitmq::service'],
+      ensure   => present,
+      require  => Class['rabbitmq::install'],
+      notify   => Class['rabbitmq::service'],
       provider => 'rabbitmqplugins'
     }
 
@@ -144,9 +174,9 @@ class rabbitmq(
 
   if $stomp_ensure {
     rabbitmq_plugin { 'rabbitmq_stomp':
-      ensure  => present,
-      require => Class['rabbitmq::install'],
-      notify  => Class['rabbitmq::service'],
+      ensure   => present,
+      require  => Class['rabbitmq::install'],
+      notify   => Class['rabbitmq::service'],
       provider => 'rabbitmqplugins'
     }
   }
@@ -160,9 +190,6 @@ class rabbitmq(
     }
   }
 
-  # Anchor this as per #8040 - this ensures that classes won't float off and
-  # mess everything up.  You can read about this at:
-  # http://docs.puppetlabs.com/puppet/2.7/reference/lang_containment.html#known-issues
   anchor { 'rabbitmq::begin': }
   anchor { 'rabbitmq::end': }
 

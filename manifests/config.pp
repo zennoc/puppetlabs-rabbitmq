@@ -1,3 +1,6 @@
+# Class: rabbitmq::config
+# Sets all the configuration values for RabbitMQ and creates the directories for
+# config and ssl.
 class rabbitmq::config {
 
   $admin_enable               = $rabbitmq::admin_enable
@@ -44,27 +47,24 @@ class rabbitmq::config {
 
   # Handle deprecated option.
   if $cluster_disk_nodes != [] {
-    notify { 'cluster_disk_nodes':
-      message => 'WARNING: The cluster_disk_nodes is deprecated.
-       Use cluster_nodes instead.',
-    }
+    warning('The $cluster_disk_nodes is deprecated. Use $cluster_nodes instead.')
     $r_cluster_nodes = $cluster_disk_nodes
   } else {
     $r_cluster_nodes = $cluster_nodes
   }
 
   file { '/etc/rabbitmq':
-    ensure  => directory,
-    owner   => '0',
-    group   => '0',
-    mode    => '0644',
+    ensure => directory,
+    owner  => '0',
+    group  => '0',
+    mode   => '0644',
   }
 
   file { '/etc/rabbitmq/ssl':
-    ensure  => directory,
-    owner   => '0',
-    group   => '0',
-    mode    => '0644',
+    ensure => directory,
+    owner  => '0',
+    group  => '0',
+    mode   => '0644',
   }
 
   file { 'rabbitmq.config':
@@ -107,8 +107,8 @@ class rabbitmq::config {
       # Safety check.
       if $wipe_db_on_cookie_change {
         exec { 'wipe_db':
-          command    => "puppet resource service ${service_name} ensure=stopped; rm -rf /var/lib/rabbitmq/mnesia",
-          path       => '/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin',
+          command => "puppet resource service ${service_name} ensure=stopped; rm -rf /var/lib/rabbitmq/mnesia",
+          path    => '/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin',
         }
         File['erlang_cookie'] {
           require => Exec['wipe_db'],

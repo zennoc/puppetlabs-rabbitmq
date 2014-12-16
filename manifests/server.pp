@@ -17,7 +17,7 @@
 #  [*config_mirrored_queues*] - DEPRECATED (doesn't do anything)
 #  [*cluster_disk_nodes*] - DEPRECATED (use cluster_nodes instead)
 #  [*cluster_nodes*] - which nodes to cluster with (including the current one)
-#  [*cluster_node_type*] - Type of cluster node (disc or ram)
+#  [*cluster_node_type*] - Type of cluster node (disc/disk or ram)
 #  [*erlang_cookie*] - erlang cookie, must be the same for all nodes in a cluster
 #  [*wipe_db_on_cookie_change*] - whether to wipe the RabbitMQ data if the specified
 #    erlang_cookie differs from the current one. This is a sad parameter: actually,
@@ -78,23 +78,23 @@ class rabbitmq::server(
   }
 
   class { 'rabbitmq':
-    port                      => $port,
-    delete_guest_user         => $delete_guest_user,
-    package_name              => $package_name,
-    version                   => $version,
-    service_name              => $service_name,
-    service_ensure            => $service_ensure,
-    service_manage            => $_service_manage,
-    config_stomp              => $config_stomp,
-    stomp_port                => $stomp_port,
-    config_cluster            => $config_cluster,
-    cluster_disk_nodes        => $cluster_disk_nodes,
-    cluster_nodes             => $cluster_nodes,
-    cluster_node_type         => $cluster_node_type,
-    node_ip_address           => $node_ip_address,
-    config                    => $config,
-    env_config                => $env_config,
-    erlang_cookie             => $erlang_cookie,
-    wipe_db_on_cookie_change  => $wipe_db_on_cookie_change,
+    port                     => $port,
+    delete_guest_user        => $delete_guest_user,
+    package_name             => $package_name,
+    version                  => $version,
+    service_name             => $service_name,
+    service_ensure           => $service_ensure,
+    service_manage           => $_service_manage,
+    config_stomp             => $config_stomp,
+    stomp_port               => $stomp_port,
+    config_cluster           => $config_cluster,
+    cluster_disk_nodes       => $cluster_disk_nodes,
+    cluster_nodes            => $cluster_nodes,
+    cluster_node_type        => $cluster_node_type,
+    node_ip_address          => $node_ip_address,
+    config                   => $config,
+    env_config               => $env_config,
+    erlang_cookie            => $erlang_cookie,
+    wipe_db_on_cookie_change => $wipe_db_on_cookie_change,
   }
 }

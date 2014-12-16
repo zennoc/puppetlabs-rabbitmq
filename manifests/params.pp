@@ -9,28 +9,21 @@ class rabbitmq::params {
       $package_ensure   = 'installed'
       $package_name     = 'rabbitmq'
       $service_name     = 'rabbitmq'
-      $package_source   = ''
       $version          = '3.1.3-1'
-      $base_version     = regsubst($version,'^(.*)-\d$','\1')
-      # This must remain at the end as we need $base_version and $version defined first
     }
     'Debian': {
       $package_ensure   = 'installed'
       $package_name     = 'rabbitmq-server'
       $service_name     = 'rabbitmq-server'
       $package_provider = 'apt'
-      $package_source   = ''
       $version          = '3.1.5'
     }
     'RedHat': {
       $package_ensure   = 'installed'
       $package_name     = 'rabbitmq-server'
       $service_name     = 'rabbitmq-server'
-      $package_provider = 'yum'
+      $package_provider = 'rpm'
       $version          = '3.1.5-1'
-      $base_version     = regsubst($version,'^(.*)-\d$','\1')
-      # This must remain at the end as we need $base_version and $version defined first.
-      $package_source   = "http://www.rabbitmq.com/releases/rabbitmq-server/v${base_version}/rabbitmq-server-${version}.noarch.rpm"
     }
     'SUSE': {
       $package_ensure   = 'installed'
@@ -38,9 +31,6 @@ class rabbitmq::params {
       $service_name     = 'rabbitmq-server'
       $package_provider = 'zypper'
       $version          = '3.1.5-1'
-      $base_version     = regsubst($version,'^(.*)-\d$','\1')
-      # This must remain at the end as we need $base_version and $version defined first.
-      $package_source   = "http://www.rabbitmq.com/releases/rabbitmq-server/v${base_version}/rabbitmq-server-${version}.noarch.rpm"
     }
     default: {
       fail("The ${module_name} module is not supported on an ${::osfamily} based system.")
@@ -52,7 +42,8 @@ class rabbitmq::params {
   $management_port            = '15672'
   $package_apt_pin            = ''
   $package_gpg_key            = 'http://www.rabbitmq.com/rabbitmq-signing-key-public.asc'
-  $manage_repos               = true
+  $repos_ensure               = true
+  $manage_repos               = undef
   $service_ensure             = 'running'
   $service_manage             = true
   #config
@@ -82,11 +73,13 @@ class rabbitmq::params {
   $ssl_management_port        = '15671'
   $ssl_stomp_port             = '6164'
   $ssl_verify                 = 'verify_none'
-  $ssl_fail_if_no_peer_cert   = 'false'
+  $ssl_fail_if_no_peer_cert   = false
   $stomp_ensure               = false
   $ldap_auth                  = false
   $ldap_server                = 'ldap'
-  $ldap_user_dn_pattern       = 'cn=${username},ou=People,dc=example,dc=com'
+  # lint:ignore:variable_scope
+  $ldap_user_dn_pattern       = "cn=${username},ou=People,dc=example,dc=com"
+  # lint:endignore
   $ldap_use_ssl               = false
   $ldap_port                  = '389'
   $ldap_log                   = false

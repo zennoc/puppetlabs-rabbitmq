@@ -34,7 +34,8 @@ all features against earlier versions.
 * rabbitmq configuration file.
 * rabbitmq service.
 
-###Beginning with rabbitmq
+###Beginning with rabbitmq  
+
 
 ```puppet
 include '::rabbitmq'
@@ -56,6 +57,23 @@ class { '::rabbitmq':
   service_manage    => false,
   port              => '5672',
   delete_guest_user => true,
+}
+```
+
+Or such as offline installation from intranet or local mirrors:
+
+```puppet
+class { '::rabbitmq':
+   key_content      => template('openstack/rabbit.pub.key'),
+   package_gpg_key  => '/tmp/rabbit.pub.key',
+}
+```
+
+And this one will use external package key source for any (apt/rpm) package provider:
+
+```puppet
+class { '::rabbitmq':
+   package_gpg_key  => 'http://www.some_site.some_domain/some_key.pub.key',
 }
 ```
 
@@ -121,7 +139,7 @@ class { 'rabbitmq':
 * rabbitmq::params: Different configuration data for different systems.
 * rabbitmq::service: Handles the rabbitmq service.
 * rabbitmq::repo::apt: Handles apt repo for Debian systems.
-* rabbitmq::repo::rhel: Handles yum repo for Redhat systems.
+* rabbitmq::repo::rhel: Handles rpm repo for Redhat systems.
 
 ###Parameters
 
@@ -205,6 +223,11 @@ RabbitMQ Environment Variables in rabbitmq_env.config
 
 The erlang cookie to use for clustering - must be the same between all nodes.
 
+###`key_content`
+
+Uses content method for Debian OS family. Should be a template for apt::source
+class. Overrides `package_gpg_key` behavior, if enabled. Undefined by default.
+
 ####`ldap_auth`
 
 Boolean, set to true to enable LDAP auth.
@@ -248,7 +271,10 @@ be changed to latest.
 
 ####`package_gpg_key`
 
-RPM package GPG key to import.
+RPM package GPG key to import. Uses source method. Should be a URL for Debian/RedHat
+OS family, or a file name for RedHat OS family.
+Set to http://www.rabbitmq.com/rabbitmq-signing-key-public.asc by default.
+Note, that `key_content`, if specified, would override this parameter for Debian OS family.
 
 ####`package_name`
 
@@ -261,6 +287,12 @@ What provider to use to install the package.
 ####`package_source`
 
 Where should the package be installed from?
+
+On Debian- and Arch-based systems using the default package provider,
+this parameter is ignored and the package is installed from the
+rabbitmq repository, if enabled with manage_repo => true, or from the
+system repository otherwise. If you want to use dpkg as the
+package_provider, you must specify a local package_source.
 
 ####`plugin_dir`
 
@@ -335,6 +367,11 @@ Boolean to enable TCP connection keepalive for RabbitMQ service.
 
 Sets the version to install.
 
+On Debian- and Arch-based operating systems, the version parameter is
+ignored and the latest version is installed from the rabbitmq
+repository, if enabled with manage_repo => true, or from the system
+repository otherwise.
+
 ####`wipe_db_on_cookie_change`
 
 Boolean to determine if we should DESTROY AND DELETE the RabbitMQ database.
@@ -393,6 +430,20 @@ rabbitmq_user_permissions { 'dan@myhost':
 }
 ```
 
+### rabbitmq\_policy
+
+```puppet
+rabbitmq_policy { 'ha-all@myhost':
+  pattern    => '.*',
+  priority   => 0,
+  applyto    => 'all',
+  definition => {
+    'ha-mode'      => 'all',
+    'ha-sync-mode' => 'automatic',
+  },
+}
+```
+
 ### rabbitmq\_plugin
 
 query all currently enabled plugins `$ puppet resource rabbitmq_plugin`
@@ -406,17 +457,21 @@ rabbitmq_plugin {'rabbitmq_stomp':
 ##Limitations
 
 This module has been built on and tested against Puppet 2.7 and higher.
+Puppet 2.7 support is slated for removal at the next major version.
 
 The module has been tested on:
 
 * RedHat Enterprise Linux 5/6
 * Debian 6/7
 * CentOS 5/6
-* Ubuntu 12.04
+* Ubuntu 12.04/14.04
 
 Testing on other platforms has been light and cannot be guaranteed.
 
 ### Module dependencies
+
+If running CentOS/RHEL, and using the yum provider, ensure the epel repo is present.
+
 To have a suitable erlang version installed on RedHat and Debian systems,
 you have to install another puppet module from http://forge.puppetlabs.com/garethr/erlang with:
 
